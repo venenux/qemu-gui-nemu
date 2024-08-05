@@ -274,7 +274,7 @@ static void nm_process_args(int argc, char **argv)
             nm_vect_free(&vm_list, nm_str_vect_free_cb);
             nm_exit_core();
         case 'v':
-            nm_cfg_init(true);
+            //nm_cfg_init(true);
             printf("nEMU %s\n", NM_VERSION);
             nm_print_feset();
             nm_cfg_free();

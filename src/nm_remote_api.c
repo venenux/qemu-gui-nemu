@@ -10,6 +10,7 @@
 #include <nm_utils.h>
 #include <nm_form.h>
 
+#if defined (NM_WITH_REMOTESSL)
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
@@ -20,14 +21,16 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
+#endif
 #define NM_API_POLL_MAXFDS 256
 
 static nm_api_ctx_t *mon_data;
 
 static int nm_api_socket(int *sock);
+#if defined (NM_WITH_REMOTESSL)
 static SSL_CTX *nm_api_tls_setup(void);
 static void nm_api_serve(SSL *tls);
+#endif
 static int nm_api_check_auth(struct json_object *request, nm_str_t *reply);
 static void nm_api_reply(const char *request, nm_str_t *reply);
 
@@ -64,14 +67,15 @@ void *nm_api_server(void *ctx)
 {
     struct pollfd fds[NM_API_POLL_MAXFDS];
     int sd, timeout, nfds = 1;
+#if defined (NM_WITH_REMOTESSL)
     SSL_CTX *tls_ctx = NULL;
-
-    mon_data = ctx;
 
     SSL_library_init();
     if ((tls_ctx = nm_api_tls_setup()) == NULL) {
         pthread_exit(NULL);
     }
+#endif
+    mon_data = ctx;
 
     if (nm_api_socket(&sd) != NM_OK) {
         pthread_exit(NULL);
@@ -140,6 +144,7 @@ void *nm_api_server(void *ctx)
                     nfds++;
                 } while (cl_sd != -1);
             } else { /* client socket event */
+#if defined (NM_WITH_REMOTESSL)
                 SSL *tls;
 
                 if ((tls = SSL_new(tls_ctx)) == NULL) {
@@ -153,6 +158,7 @@ void *nm_api_server(void *ctx)
                 SSL_free(tls);
                 fds[n].fd = -1;
                 rebuild_fds = true;
+#endif
             }
         }
 
@@ -176,8 +182,9 @@ out:
             close(fds[i].fd);
         }
     }
-
+#if defined (NM_WITH_REMOTESSL)
     SSL_CTX_free(tls_ctx);
+#endif
     nm_db_close();
 
     pthread_exit(NULL);
@@ -215,15 +222,16 @@ static void nm_api_reply(const char *request, nm_str_t *reply)
 
 static void nm_api_serve(SSL *tls)
 {
+#if defined (NM_WITH_REMOTESSL)
     char buf[NM_API_CL_BUF_LEN] = {0};
     int sd, nread;
-
     if (SSL_accept(tls) != 1) {
         nm_debug("%s: %s\n", __func__, ERR_error_string(ERR_get_error(), NULL));
         goto out;
     }
 
     nread = SSL_read(tls, buf, sizeof(buf));
+    // we need to fill nread with buffer commands parameters
     if (nread > 0) {
         nm_str_t reply = NM_INIT_STR;
 
@@ -250,8 +258,10 @@ out:
     sd = SSL_get_fd(tls);
     SSL_shutdown(tls);
     close(sd);
+#endif
 }
 
+#if defined (NM_WITH_REMOTESSL)
 static SSL_CTX *nm_api_tls_setup(void)
 {
     const nm_cfg_t *cfg = nm_cfg_get();
@@ -292,6 +302,7 @@ err:
     SSL_CTX_free(ctx);
     return NULL;
 }
+#endif
 
 static int nm_api_socket(int *sock)
 {
@@ -366,7 +377,7 @@ static int nm_api_check_auth(struct json_object *request, nm_str_t *reply)
 
     pass = json_object_get_string(auth);
     nm_str_format(&salted_pass, "%s%s", pass, nm_cfg_get()->api_salt.data);
-
+#if defined (NM_WITH_REMOTESSL)
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     SHA256_CTX sha256;
 
@@ -376,12 +387,12 @@ static int nm_api_check_auth(struct json_object *request, nm_str_t *reply)
 #else
     uint32_t md_len;
     EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
-
     EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
     EVP_DigestUpdate(mdctx, salted_pass.data, salted_pass.len);
     EVP_DigestFinal_ex(mdctx, hash, &md_len);
     EVP_MD_CTX_destroy(mdctx);
     EVP_cleanup();
+#endif
 #endif
 
     for (int n = 0; n < SHA256_DIGEST_LENGTH; n++) {

@@ -68,10 +68,12 @@ static const char NM_INI_P_GL_CHECK[]   = "glyph_checkbox";
 static const char NM_INI_P_API_SRV[]    = "remote_control";
 static const char NM_INI_P_API_IFACE[]  = "remote_interface";
 static const char NM_INI_P_API_PORT[]   = "remote_port";
+#if defined (NM_WITH_REMOTESSL)
 static const char NM_INI_P_API_CERT[]   = "remote_tls_cert";
 static const char NM_INI_P_API_KEY[]    = "remote_tls_key";
 static const char NM_INI_P_API_SALT[]   = "remote_salt";
 static const char NM_INI_P_API_HASH[]   = "remote_hash";
+#endif
 #endif
 #if defined (NM_WITH_DBUS)
 static const char NM_INI_P_DYES[]       = "dbus_enabled";
@@ -373,6 +375,7 @@ void nm_cfg_init(bool bypass_cfg)
     if (cfg.api_server) {
         nm_get_opt_param(ini, NM_INI_S_DMON, NM_INI_P_API_IFACE,
                 &cfg.api_iface);
+#if defined (NM_WITH_REMOTESSL)
         nm_get_param(ini, NM_INI_S_DMON, NM_INI_P_API_CERT,
                 &cfg.api_cert_path, NULL);
         nm_get_param(ini, NM_INI_S_DMON, NM_INI_P_API_KEY,
@@ -381,6 +384,7 @@ void nm_cfg_init(bool bypass_cfg)
                 &cfg.api_salt, NULL);
         nm_get_param(ini, NM_INI_S_DMON, NM_INI_P_API_HASH,
                 &cfg.api_hash, NULL);
+#endif
     }
 #endif
 
@@ -430,10 +434,12 @@ void nm_cfg_free(void)
     nm_str_free(&cfg.qemu_bin_path);
     nm_vect_free(&cfg.qemu_targets, NULL);
 #if defined (NM_WITH_REMOTE)
+#if defined (NM_WITH_REMOTESSL)
     nm_str_free(&cfg.api_cert_path);
     nm_str_free(&cfg.api_key_path);
     nm_str_free(&cfg.api_salt);
     nm_str_free(&cfg.api_hash);
+#endif
     nm_str_free(&cfg.api_iface);
 #endif
 }
@@ -646,6 +652,7 @@ static void nm_generate_cfg(const char *home, const nm_str_t *cfg_path)
                     "#remote_interface = eth0\n\n");
             fprintf(cfg_file, "# Remote control port (default: %d)\n"
                     "#remote_port = %d\n\n", NM_API_PORT, NM_API_PORT);
+#ifdef NM_WITH_REMOTESSL
             fprintf(cfg_file, "# Remote control public certificate path\n"
                     "#remote_tls_cert = /path\n\n");
             fprintf(cfg_file, "# Remote control private key path\n"
@@ -655,6 +662,7 @@ static void nm_generate_cfg(const char *home, const nm_str_t *cfg_path)
             fprintf(cfg_file, "# Remote control \"password+salt\" "
                     "hash (sha256)\n"
                     "#remote_hash = hash\n");
+#endif
 #endif
             fclose(cfg_file);
 
